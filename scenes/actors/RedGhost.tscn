@@ -1,0 +1,10 @@
+[gd_scene load_steps=2 format=3 uid="uid://3c00cg4lq73s"]
+
+[ext_resource type="Texture2D" uid="uid://bcnbc4cj1fsrr" path="res://assets/textures/RedGhost.png" id="1_fq5a2"]
+
+[node name="RedGhost" type="Node2D"]
+
+[node name="RedGhost" type="Sprite2D" parent="."]
+position = Vector2(1.9073486e-06, -1.0000019)
+scale = Vector2(0.16156249, 0.16156249)
+texture = ExtResource("1_fq5a2")

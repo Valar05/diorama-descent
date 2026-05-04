@@ -1,0 +1,14 @@
+[gd_scene load_steps=3 format=3 uid="uid://dlctd861d2gxe"]
+
+[ext_resource type="Texture2D" uid="uid://b8xejugmsliir" path="res://assets/textures/crystalBig.png" id="1_big"]
+[ext_resource type="PackedScene" uid="uid://bq70jbbile3qs" path="res://scenes/items/crystal_small_2.tscn" id="2_so14k"]
+
+[node name="CrystalBig" type="Node2D"]
+
+[node name="CrystalBig" type="Sprite2D" parent="."]
+position = Vector2(5, -28)
+scale = Vector2(0.55475503, 0.55475503)
+texture = ExtResource("1_big")
+
+[node name="CrystalSmall2" parent="." instance=ExtResource("2_so14k")]
+position = Vector2(1.1444092e-05, -9.000011)

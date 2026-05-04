@@ -1,0 +1,10 @@
+[gd_scene load_steps=2 format=3 uid="uid://cct3x3sfx1q80"]
+
+[ext_resource type="Texture2D" uid="uid://xkt68l80n35e" path="res://assets/textures/Exit.png" id="1_vs230"]
+
+[node name="Exit" type="Node2D"]
+
+[node name="Exit" type="Sprite2D" parent="."]
+position = Vector2(48, 16)
+scale = Vector2(0.112243645, 0.11224366)
+texture = ExtResource("1_vs230")

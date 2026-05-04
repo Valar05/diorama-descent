@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3 uid="uid://i2tnaqbuenoh"]
+
+[ext_resource type="Texture2D" uid="uid://bqgy3i04xy1vf" path="res://assets/textures/ShovelFist.png" id="1_tinkw"]
+
+[node name="ShovelFist" type="Sprite2D"]
+rotation = -0.573801
+scale = Vector2(-0.216, 0.216)
+texture = ExtResource("1_tinkw")

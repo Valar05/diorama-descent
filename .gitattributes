@@ -1,0 +1,33 @@
+# Normalize EOL for text files.
+* text=auto eol=lf
+
+# Godot project files are text.
+*.godot text eol=lf
+*.tscn text eol=lf
+*.tres text eol=lf
+*.res -text
+*.gd text eol=lf
+*.cfg text eol=lf
+*.import text eol=lf
+*.uid text eol=lf
+
+# Common binary assets.
+*.png -text
+*.jpg -text
+*.jpeg -text
+*.webp -text
+*.gif -text
+*.ico -text
+*.ttf -text
+*.otf -text
+*.wav -text
+*.ogg -text
+*.mp3 -text
+*.glb -text
+*.gltf -text
+
+# Build artifacts.
+*.apk -text
+*.aab -text
+*.idsig -text
+*.pck -text

@@ -1,0 +1,7 @@
+[gd_scene load_steps=2 format=3 uid="uid://g8ssf7vwogl7"]
+
+[ext_resource type="Texture2D" uid="uid://bebria41imwvp" path="res://assets/textures/MineExplosion.png" id="1_f8ti5"]
+
+[node name="MineExplosion" type="Sprite2D"]
+scale = Vector2(0.37109375, 0.37109375)
+texture = ExtResource("1_f8ti5")

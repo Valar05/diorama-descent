@@ -1,0 +1,14 @@
+[gd_scene load_steps=3 format=3 uid="uid://c8njuvk854ldy"]
+
+[ext_resource type="Texture2D" uid="uid://xoxqtrkqtou6" path="res://assets/textures/BackgroundDirt.png" id="1_f3sb7"]
+[ext_resource type="Script" uid="uid://dk76lvybpifc0" path="res://scripts/world.gd" id="2_bf7lm"]
+
+[node name="World" type="Node2D"]
+script = ExtResource("2_bf7lm")
+
+[node name="BackgroundDirt" type="Sprite2D" parent="."]
+position = Vector2(840.99994, 1028)
+scale = Vector2(1.7509764, 1.7509764)
+texture = ExtResource("1_f3sb7")
+
+[node name="Rocks" type="Node2D" parent="."]

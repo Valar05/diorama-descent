@@ -1,0 +1,7 @@
+[gd_scene load_steps=2 format=3 uid="uid://vrafqrkkn37p"]
+
+[ext_resource type="Texture2D" uid="uid://syqj4w2qa6wi" path="res://assets/textures/crystalSmall1.png" id="1_small_1"]
+
+[node name="CrystalSmall1" type="Sprite2D"]
+scale = Vector2(0.67992425, 0.6799243)
+texture = ExtResource("1_small_1")

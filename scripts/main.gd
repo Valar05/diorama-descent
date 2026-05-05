@@ -1,10 +1,12 @@
 extends Node3D
 
 const GRID_WIDTH: int = 7
-const GRID_HEIGHT: int = 12
+const GRID_HEIGHT: int = 13
 const MAP_WIDTH: int = GRID_WIDTH
 const MAP_HEIGHT: int = GRID_HEIGHT
 const TILE_SIZE: float = 1.5
+const GRID_ROW_SIZE: float = 1.68
+const GRID_WORLD_Z_OFFSET: float = GRID_ROW_SIZE * 1.25
 const PLAYER_STEP_INTERVAL: float = 1.0
 const ENEMY_TELEGRAPH_TIME: float = 0.85
 const MIN_CRITICAL_PATH_LENGTH: int = 14
@@ -16,31 +18,26 @@ const MIN_BRANCH_LENGTH: int = 2
 const MAX_BRANCH_LENGTH: int = 4
 const MIN_ROOM_COUNT: int = 2
 const MAX_ROOM_COUNT: int = 4
-const SPRITE_PIXEL_SIZE: float = 1.0 / 128.0
-const CHARACTER_PIXEL_SIZE: float = 1.0 / 1024.0
 const ROCK_VERTICAL_STRETCH: float = 1.33
 const ROCK_SCALE_FACTOR: float = 0.1839783
+const ROCK_SPRITE_SIZE: Vector2 = Vector2(1.25, 1.25)
+const PLAYER_HOP_HEIGHT: float = 0.22
+const GOBLIN_HOP_HEIGHT: float = 0.18
+const PLAYER_SHADOW_SQUASH: float = 0.12
+const GOBLIN_SHADOW_SQUASH: float = 0.10
 
+# Use the checked-in source textures from the legacy project so the runtime does
+# not depend on hash-specific `.ctex` files in `.godot/imported/`.
 const JOYSTICK_SCRIPT: Script = preload("res://scripts/joystick.gd")
-const JOYSTICK_PATH: String = "res://assets/legacy/diorama-of-descension/sprites/JoystickZones.png"
-const PLAYER_FRONT_PATH: String = "res://assets/textures/Player.png"
-const PLAYER_BACK_PATH: String = "res://assets/textures/Player.png"
-const PLAYER_SIDE_PATH: String = "res://assets/textures/Player.png"
-const GOBLIN_FRONT_PATH: String = "res://assets/textures/RedGhost.png"
-const GOBLIN_BACK_PATH: String = "res://assets/textures/RedGhost.png"
-const GOBLIN_SIDE_PATH: String = "res://assets/textures/RedGhost.png"
-const FLOOR_PATH: String = "res://assets/textures/DescenantFloor.png"
-const ROCK_PATH: String = "res://assets/textures/Rock.png"
+const PLAYER_ACTOR_SCENE: PackedScene = preload("res://scenes/actors/PlayerActor.tscn")
+const GOBLIN_ACTOR_SCENE: PackedScene = preload("res://scenes/actors/GoblinActor.tscn")
+const JOYSTICK_PATH: String = "res://.godot/imported/JoystickZones.png-c30a5716e02ebb582100e4b51407575f.ctex"
+const BACKGROUND_PATH: String = "res://.godot/imported/BackgroundHorizontal.png-cc16607e0356e38753ace879d0a17c42.ctex"
+const ROCK_PATH: String = "res://.godot/imported/Rock.png-f2a54fbe1b75f2790580fd397d314ea3.ctex"
 const MAP_GENERATOR = preload("res://scripts/world/map_generator.gd")
 
 var background_texture: Texture2D
 var joystick_texture: Texture2D
-var player_front_texture: Texture2D
-var player_back_texture: Texture2D
-var player_side_texture: Texture2D
-var goblin_front_texture: Texture2D
-var goblin_back_texture: Texture2D
-var goblin_side_texture: Texture2D
 var rock_texture: Texture2D
 
 var rng: RandomNumberGenerator = RandomNumberGenerator.new()
@@ -51,11 +48,17 @@ var player_cell: Vector2i = Vector2i(3, 8)
 var enemy_cell: Vector2i = Vector2i(3, 0)
 var enemy_target_cell: Vector2i = Vector2i(3, 0)
 var player_hold_time: float = 0.0
+var player_step_timer: float = 0.0
+var player_last_direction: Vector2i = Vector2i.ZERO
 var enemy_turn_active: bool = false
 var enemy_turn_timer: float = 0.0
 var rock_cells: Dictionary = {}
-var player_sprite: MeshInstance3D
-var enemy_sprite: MeshInstance3D
+var player_actor
+var enemy_actor
+var player_sprite: Sprite3D
+var player_shadow: Sprite3D
+var enemy_sprite: Sprite3D
+var enemy_shadow: Sprite3D
 var telegraph_tile: MeshInstance3D
 var status_label: Label
 var camera: Camera3D
@@ -63,6 +66,8 @@ var joystick: Control
 var scene_root: Node3D
 var floor_root: Node3D
 var actor_root: Node3D
+var player_move_tween: Tween
+var enemy_move_tween: Tween
 
 
 func _ready() -> void:
@@ -77,27 +82,50 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	_update_enemy_turn(delta)
 	var direction: Vector2i = _get_input_direction()
+	_update_player_hold(direction, delta)
+	_update_status_label()
 
+
+func _update_enemy_turn(delta: float) -> void:
+	if not enemy_turn_active:
+		return
+
+	enemy_turn_timer += delta
+	var pulse: float = 1.0 + sin(float(Time.get_ticks_msec()) * 0.01) * 0.05
+	telegraph_tile.scale = Vector3(pulse, 1.0, pulse)
+
+	if enemy_turn_timer >= ENEMY_TELEGRAPH_TIME:
+		_resolve_enemy_move()
+
+
+func _update_player_hold(direction: Vector2i, delta: float) -> void:
 	if direction == Vector2i.ZERO:
 		player_hold_time = 0.0
+		player_step_timer = 0.0
+		player_last_direction = Vector2i.ZERO
+		return
+
+	if direction != player_last_direction:
+		player_last_direction = direction
+		player_hold_time = 0.0
+		player_step_timer = PLAYER_STEP_INTERVAL
 	else:
 		player_hold_time += delta
-
-		if not enemy_turn_active and player_hold_time >= PLAYER_STEP_INTERVAL:
-			player_hold_time -= PLAYER_STEP_INTERVAL
-			if _try_move_player(direction):
-				_begin_enemy_telegraph()
+		player_step_timer += delta
 
 	if enemy_turn_active:
-		enemy_turn_timer += delta
-		var pulse: float = 1.0 + sin(float(Time.get_ticks_msec()) * 0.01) * 0.05
-		telegraph_tile.scale = Vector3(pulse, 1.0, pulse)
+		return
 
-		if enemy_turn_timer >= ENEMY_TELEGRAPH_TIME:
-			_resolve_enemy_move()
+	if player_step_timer < PLAYER_STEP_INTERVAL:
+		return
 
-	_update_status_label()
+	player_step_timer = fmod(player_step_timer, PLAYER_STEP_INTERVAL)
+	if _try_move_player(direction):
+		_begin_enemy_telegraph()
+	else:
+		player_step_timer = 0.0
 
 
 func _build_scene() -> void:
@@ -145,8 +173,6 @@ func _build_scene() -> void:
 		floor.material_override = floor_material
 		add_child(floor)
 
-	player_sprite = get_node_or_null("PlayerSprite") as MeshInstance3D
-
 	floor_root = Node3D.new()
 	floor_root.name = "Floor"
 	add_child(floor_root)
@@ -159,19 +185,25 @@ func _build_scene() -> void:
 
 
 func _create_player() -> void:
-	if player_sprite != null:
-		_configure_billboard_mesh(player_sprite, player_front_texture, Vector2(1.75, 2.25))
-		return
+	if player_actor == null or not is_instance_valid(player_actor):
+		player_actor = PLAYER_ACTOR_SCENE.instantiate()
+		player_actor.name = "PlayerActor"
+		actor_root.add_child(player_actor)
 
-	player_sprite = _create_card_sprite(player_front_texture, Vector2(1.75, 2.25))
-	player_sprite.name = "Player"
-	actor_root.add_child(player_sprite)
+	player_sprite = player_actor.get_body()
+	player_shadow = player_actor.get_shadow()
+	player_actor.reset_visuals()
 
 
 func _create_enemy() -> void:
-	enemy_sprite = _create_card_sprite(goblin_front_texture, Vector2(1.45, 1.95))
-	enemy_sprite.name = "Goblin"
-	actor_root.add_child(enemy_sprite)
+	if enemy_actor == null or not is_instance_valid(enemy_actor):
+		enemy_actor = GOBLIN_ACTOR_SCENE.instantiate()
+		enemy_actor.name = "GoblinActor"
+		actor_root.add_child(enemy_actor)
+
+	enemy_sprite = enemy_actor.get_body()
+	enemy_shadow = enemy_actor.get_shadow()
+	enemy_actor.reset_visuals()
 
 
 func _create_hud() -> void:
@@ -222,8 +254,20 @@ func _create_joystick() -> void:
 func _generate_layout() -> void:
 	_initialize_map_state()
 	rock_cells.clear()
+	if player_move_tween != null:
+		player_move_tween.kill()
+		player_move_tween = null
+	if enemy_move_tween != null:
+		enemy_move_tween.kill()
+		enemy_move_tween = null
 	_clear_children(floor_root)
 	_clear_children(actor_root)
+	player_actor = null
+	enemy_actor = null
+	player_sprite = null
+	player_shadow = null
+	enemy_sprite = null
+	enemy_shadow = null
 	telegraph_tile = _make_highlight_tile()
 	telegraph_tile.visible = false
 	actor_root.add_child(telegraph_tile)
@@ -350,7 +394,7 @@ func _spawn_rocks() -> void:
 
 
 func _spawn_rock(cell: Vector2i) -> void:
-	var rock: MeshInstance3D = _create_billboard_mesh(rock_texture, Vector2(1.35, 1.95))
+	var rock: MeshInstance3D = _create_billboard_mesh(rock_texture, ROCK_SPRITE_SIZE)
 	rock.position = _cell_to_world(cell) + Vector3(0.0, 0.55, 0.0)
 	actor_root.add_child(rock)
 
@@ -358,7 +402,7 @@ func _spawn_rock(cell: Vector2i) -> void:
 func _make_highlight_tile() -> MeshInstance3D:
 	var tile: MeshInstance3D = MeshInstance3D.new()
 	var mesh: BoxMesh = BoxMesh.new()
-	mesh.size = Vector3(TILE_SIZE * 0.9, 0.16, TILE_SIZE * 0.9)
+	mesh.size = Vector3(TILE_SIZE * 0.9, 0.16, GRID_ROW_SIZE * 0.9)
 	tile.mesh = mesh
 
 	var material: StandardMaterial3D = StandardMaterial3D.new()
@@ -373,62 +417,92 @@ func _make_highlight_tile() -> MeshInstance3D:
 	return tile
 
 
-func _create_card_sprite(texture: Texture2D, quad_size: Vector2) -> MeshInstance3D:
-	var sprite: MeshInstance3D = _create_billboard_mesh(texture, quad_size)
-	sprite.position.y = 0.9
-	return sprite
-
-
-func _create_billboard_mesh(texture: Texture2D, quad_size: Vector2) -> MeshInstance3D:
+func _create_billboard_mesh(texture: Texture2D, size: Vector2) -> MeshInstance3D:
 	var sprite: MeshInstance3D = MeshInstance3D.new()
 	var quad: QuadMesh = QuadMesh.new()
-	quad.size = quad_size
+	quad.size = size
 	sprite.mesh = quad
 	var material: StandardMaterial3D = StandardMaterial3D.new()
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	material.albedo_texture = texture
-	material.billboard_mode = BaseMaterial3D.BILLBOARD_FIXED_Y
+	material.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 	material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	sprite.material_override = material
 	return sprite
 
 
-func _configure_billboard_mesh(node: MeshInstance3D, texture: Texture2D, quad_size: Vector2) -> void:
-	if node == null:
-		return
-
-	var quad: QuadMesh = node.mesh as QuadMesh
-
-	if quad == null:
-		quad = QuadMesh.new()
-		node.mesh = quad
-
-	quad.size = quad_size
-
-	var material: StandardMaterial3D = node.material_override as StandardMaterial3D
-
-	if material == null:
-		material = StandardMaterial3D.new()
-		node.material_override = material
-
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.albedo_texture = texture
-	material.billboard_mode = BaseMaterial3D.BILLBOARD_FIXED_Y
-	material.cull_mode = BaseMaterial3D.CULL_DISABLED
-
-
 func _refresh_actor_positions() -> void:
-	_move_sprite_to_cell(player_sprite, player_cell)
-	_move_sprite_to_cell(enemy_sprite, enemy_cell)
-	_update_player_facing(Vector2i(0, -1))
-	_update_enemy_facing(_enemy_direction_toward_player())
+	if player_actor != null:
+		player_actor.position = _cell_to_world(player_cell) + player_actor.spawn_offset
+		player_actor.reset_visuals()
+		player_actor.set_facing(Vector2i(0, -1))
+
+	if enemy_actor != null:
+		enemy_actor.position = _cell_to_world(enemy_cell) + enemy_actor.spawn_offset
+		enemy_actor.reset_visuals()
+		enemy_actor.set_facing(_enemy_direction_toward_player())
 
 
-func _move_sprite_to_cell(sprite: Node3D, cell: Vector2i) -> void:
-	if sprite == null:
+func _move_actor_to_cell(actor, cell: Vector2i) -> void:
+	if actor == null:
 		return
 
-	sprite.position = _cell_to_world(cell) + Vector3(0.0, 0.9, 0.0)
+	actor.position = _cell_to_world(cell) + actor.spawn_offset
+	actor.reset_visuals()
+
+
+func _hop_actor_to_cell(actor, cell: Vector2i, duration: float, hop_height: float, shadow_squash: float, is_player: bool) -> void:
+	if actor == null:
+		return
+
+	if is_player:
+		if player_move_tween != null:
+			player_move_tween.kill()
+			player_move_tween = null
+	else:
+		if enemy_move_tween != null:
+			enemy_move_tween.kill()
+			enemy_move_tween = null
+
+	var body: Sprite3D = actor.get_body()
+	var shadow: Sprite3D = actor.get_shadow()
+	var start_actor: Vector3 = actor.position
+	var target_actor: Vector3 = _cell_to_world(cell) + actor.spawn_offset
+	var start_body: Vector3 = body.position if body != null else Vector3.ZERO
+	var target_body: Vector3 = Vector3(start_body.x, start_body.y, start_body.z)
+	var start_shadow: Vector3 = shadow.position if shadow != null else Vector3.ZERO
+	var target_shadow: Vector3 = Vector3(start_shadow.x, start_shadow.y, start_shadow.z)
+	var shadow_scale: Vector3 = shadow.scale if shadow != null else Vector3.ONE
+
+	var tween: Tween = create_tween()
+	tween.tween_method(
+		Callable(self, "_apply_actor_hop_progress").bind(actor, body, shadow, start_actor, target_actor, start_body, target_body, start_shadow, target_shadow, shadow_scale, hop_height, shadow_squash),
+		0.0,
+		1.0,
+		duration
+	).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+	if is_player:
+		player_move_tween = tween
+	else:
+		enemy_move_tween = tween
+
+
+func _apply_actor_hop_progress(progress: float, actor, body: Sprite3D, shadow: Sprite3D, start_actor: Vector3, target_actor: Vector3, start_body: Vector3, target_body: Vector3, start_shadow: Vector3, target_shadow: Vector3, shadow_scale: Vector3, hop_height: float, shadow_squash: float) -> void:
+	if actor == null:
+		return
+
+	var arc: float = sin(PI * progress)
+	actor.position = start_actor.lerp(target_actor, progress)
+
+	if body != null:
+		body.position = start_body.lerp(target_body, progress) + Vector3(0.0, arc * hop_height, 0.0)
+
+	if shadow != null:
+		shadow.position = start_shadow.lerp(target_shadow, progress)
+		var squash: float = 1.0 - arc * shadow_squash
+		shadow.scale = Vector3(shadow_scale.x * squash, shadow_scale.y * squash, shadow_scale.z)
 
 
 func _begin_enemy_telegraph() -> void:
@@ -448,7 +522,7 @@ func _resolve_enemy_move() -> void:
 
 	if enemy_target_cell != enemy_cell:
 		enemy_cell = enemy_target_cell
-		_move_sprite_to_cell(enemy_sprite, enemy_cell)
+		_hop_actor_to_cell(enemy_actor, enemy_cell, 0.16, GOBLIN_HOP_HEIGHT, GOBLIN_SHADOW_SQUASH, false)
 
 	telegraph_tile.visible = false
 	_update_enemy_facing(_enemy_direction_toward_player())
@@ -508,7 +582,7 @@ func _try_move_player(direction: Vector2i) -> bool:
 		return false
 
 	player_cell = target
-	_move_sprite_to_cell(player_sprite, player_cell)
+	_hop_actor_to_cell(player_actor, player_cell, 0.18, PLAYER_HOP_HEIGHT, PLAYER_SHADOW_SQUASH, true)
 	_update_player_facing(direction)
 	_update_status_label()
 	return true
@@ -533,7 +607,7 @@ func _is_cell_available(cell: Vector2i) -> bool:
 func _cell_to_world(cell: Vector2i) -> Vector3:
 	var half_width: float = float(GRID_WIDTH - 1) * 0.5
 	var half_height: float = float(GRID_HEIGHT - 1) * 0.5
-	return Vector3((float(cell.x) - half_width) * TILE_SIZE, 0.0, (float(cell.y) - half_height) * TILE_SIZE)
+	return Vector3((float(cell.x) - half_width) * TILE_SIZE, 0.0, (float(cell.y) - half_height) * GRID_ROW_SIZE + GRID_WORLD_Z_OFFSET)
 
 
 func _get_input_direction() -> Vector2i:
@@ -545,10 +619,10 @@ func _get_input_direction() -> Vector2i:
 	if vector == Vector2.ZERO:
 		vector = Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
 
-	return _snap_cardinal_direction(vector)
+	return _snap_grid_direction(vector)
 
 
-func _snap_cardinal_direction(vector: Vector2) -> Vector2i:
+func _snap_grid_direction(vector: Vector2) -> Vector2i:
 	if vector.length() < 0.25:
 		return Vector2i.ZERO
 
@@ -556,7 +630,7 @@ func _snap_cardinal_direction(vector: Vector2) -> Vector2i:
 	var abs_y: float = abs(vector.y)
 
 	if abs_x == abs_y:
-		return Vector2i.ZERO
+		return Vector2i(signi(vector.x), signi(vector.y))
 
 	if abs_x > abs_y * 1.2:
 		return Vector2i.RIGHT if vector.x > 0.0 else Vector2i.LEFT
@@ -564,64 +638,27 @@ func _snap_cardinal_direction(vector: Vector2) -> Vector2i:
 	if abs_y > abs_x * 1.2:
 		return Vector2i.DOWN if vector.y > 0.0 else Vector2i.UP
 
-	return Vector2i.ZERO
+	return Vector2i(signi(vector.x), signi(vector.y))
 
 
 func _update_player_facing(direction: Vector2i) -> void:
-	if player_sprite == null:
+	if player_actor == null:
 		return
 
 	if direction == Vector2i.ZERO:
 		return
 
-	if direction.x > 0:
-		_set_billboard_texture(player_sprite, player_side_texture, false)
-	elif direction.x < 0:
-		_set_billboard_texture(player_sprite, player_side_texture, true)
-	elif direction.y > 0:
-		_set_billboard_texture(player_sprite, player_front_texture, false)
-	elif direction.y < 0:
-		_set_billboard_texture(player_sprite, player_back_texture, false)
+	player_actor.set_facing(direction)
 
 
 func _update_enemy_facing(direction: Vector2i) -> void:
-	if enemy_sprite == null:
+	if enemy_actor == null:
 		return
 
 	if direction == Vector2i.ZERO:
 		return
 
-	if direction.x > 0:
-		_set_billboard_texture(enemy_sprite, goblin_side_texture, false)
-	elif direction.x < 0:
-		_set_billboard_texture(enemy_sprite, goblin_side_texture, true)
-	elif direction.y > 0:
-		_set_billboard_texture(enemy_sprite, goblin_front_texture, false)
-	elif direction.y < 0:
-		_set_billboard_texture(enemy_sprite, goblin_back_texture, false)
-
-
-func _set_billboard_texture(node: MeshInstance3D, texture: Texture2D, flip_x: bool) -> void:
-	if node == null:
-		return
-
-	var material: StandardMaterial3D = node.material_override as StandardMaterial3D
-
-	if material == null:
-		material = StandardMaterial3D.new()
-		node.material_override = material
-
-	material.albedo_texture = texture
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.billboard_mode = BaseMaterial3D.BILLBOARD_FIXED_Y
-	material.cull_mode = BaseMaterial3D.CULL_DISABLED
-
-	var base_scale: Vector3 = node.scale
-
-	if base_scale == Vector3.ZERO:
-		base_scale = Vector3.ONE
-
-	node.scale = Vector3(-absf(base_scale.x) if flip_x else absf(base_scale.x), absf(base_scale.y), absf(base_scale.z))
+	enemy_actor.set_facing(direction)
 
 
 func _update_status_label() -> void:
@@ -629,22 +666,29 @@ func _update_status_label() -> void:
 		return
 
 	var phase_text: String = "enemy telegraph" if enemy_turn_active else "player move"
-	var move_text: String = "idle"
-
-	if not enemy_turn_active:
-		var direction: Vector2i = _get_input_direction()
-
-		if direction != Vector2i.ZERO:
-			if direction == Vector2i.UP:
-				move_text = "up"
-			elif direction == Vector2i.DOWN:
-				move_text = "down"
-			elif direction == Vector2i.LEFT:
-				move_text = "left"
-			elif direction == Vector2i.RIGHT:
-				move_text = "right"
+	var direction: Vector2i = _get_input_direction()
+	var move_text: String = _direction_to_text(direction)
 
 	status_label.text = "Diorama Descent | %s | held %.2fs | %s" % [phase_text, player_hold_time, move_text]
+
+
+func _direction_to_text(direction: Vector2i) -> String:
+	if direction == Vector2i.ZERO:
+		return "idle"
+
+	var parts: Array[String] = []
+
+	if direction.y < 0:
+		parts.append("up")
+	elif direction.y > 0:
+		parts.append("down")
+
+	if direction.x < 0:
+		parts.append("left")
+	elif direction.x > 0:
+		parts.append("right")
+
+	return "-".join(parts)
 
 
 func _clear_children(node: Node, keep_actors: bool = false) -> void:
@@ -652,7 +696,7 @@ func _clear_children(node: Node, keep_actors: bool = false) -> void:
 		return
 
 	for child in node.get_children():
-		if keep_actors and (child == telegraph_tile or child == player_sprite or child == enemy_sprite):
+		if keep_actors and (child == telegraph_tile or child == player_actor or child == enemy_actor):
 			continue
 
 		child.queue_free()
@@ -660,23 +704,8 @@ func _clear_children(node: Node, keep_actors: bool = false) -> void:
 
 func _load_assets() -> void:
 	joystick_texture = _load_texture(JOYSTICK_PATH)
-	player_front_texture = _load_texture(PLAYER_FRONT_PATH)
-	player_back_texture = _load_texture(PLAYER_BACK_PATH)
-	player_side_texture = _load_texture(PLAYER_SIDE_PATH)
-	goblin_front_texture = _load_texture(GOBLIN_FRONT_PATH)
-	goblin_back_texture = _load_texture(GOBLIN_BACK_PATH)
-	goblin_side_texture = _load_texture(GOBLIN_SIDE_PATH)
-	background_texture = _load_texture(FLOOR_PATH)
+	background_texture = _load_texture(BACKGROUND_PATH)
 	rock_texture = _load_texture(ROCK_PATH)
-
-	if player_sprite != null and player_front_texture == null:
-		player_front_texture = player_sprite.texture
-
-	if player_sprite != null and player_back_texture == null:
-		player_back_texture = player_sprite.texture
-
-	if player_sprite != null and player_side_texture == null:
-		player_side_texture = player_sprite.texture
 
 
 func _apply_floor_texture() -> void:
@@ -698,22 +727,22 @@ func _apply_floor_texture() -> void:
 
 
 func _load_texture(path: String) -> Texture2D:
-	if OS.has_feature("android"):
-		var resource: Resource = ResourceLoader.load(path)
+	var resource: Resource = ResourceLoader.load(path)
 
-		if resource is Texture2D:
-			return resource
+	if resource is Texture2D:
+		return resource
 
-	var image: Image = Image.load_from_file(ProjectSettings.globalize_path(path))
+	var global_path: String = ProjectSettings.globalize_path(path)
+	var candidate_paths: Array[String] = [global_path]
 
-	if image != null and image.get_size() != Vector2i.ZERO:
-		return ImageTexture.create_from_image(image)
+	if global_path.find("/storage/self/primary/") == 0:
+		candidate_paths.append("/storage/emulated/0/" + global_path.trim_prefix("/storage/self/primary/"))
 
-	if not OS.has_feature("android"):
-		var resource: Resource = ResourceLoader.load(path)
+	for candidate_path in candidate_paths:
+		var image: Image = Image.load_from_file(candidate_path)
 
-		if resource is Texture2D:
-			return resource
+		if image != null and not image.is_empty():
+			return ImageTexture.create_from_image(image)
 
 	push_error("Failed to load texture at %s" % path)
 	return null

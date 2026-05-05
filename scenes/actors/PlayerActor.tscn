@@ -1,0 +1,62 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://scripts/ActorVisual.gd" id="1_actor"]
+[ext_resource type="Shader" path="res://scripts/ActorSprite.gdshader" id="2_shader"]
+[ext_resource type="Texture2D" path="res://assets/legacy/diorama-of-descension/sprites/Forsaken_player_front.png" id="3_front"]
+[ext_resource type="Texture2D" path="res://assets/legacy/diorama-of-descension/sprites/Forsaken_player_back.png" id="4_back"]
+[ext_resource type="Texture2D" path="res://assets/legacy/diorama-of-descension/sprites/Forsaken_player_right.png" id="5_side"]
+[ext_resource type="Texture2D" path="res://assets/legacy/diorama-of-descension/sprites/Forsaken_player_shadow_front.png" id="6_shadow"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_body"]
+render_priority = 0
+shader = ExtResource("2_shader")
+shader_parameter/albedo_tex = ExtResource("3_front")
+shader_parameter/dissolve_progress = 0.0
+shader_parameter/dissolve_noise_scale = 1.0
+shader_parameter/dissolve_noise_offset = Vector2(0, 0)
+shader_parameter/glow_radius = 21.82800103683
+shader_parameter/glow_color = Color(0.26666668, 1, 1, 1)
+shader_parameter/modulate_color = Color(1, 1, 1, 1)
+shader_parameter/use_gradient_remap = false
+shader_parameter/overall_size = 1.0
+shader_parameter/top_stretch = 0.0
+shader_parameter/bottom_stretch = 0.0
+shader_parameter/left_stretch = 0.0
+shader_parameter/right_stretch = 0.0
+shader_parameter/top_falloff = 0.5
+shader_parameter/bottom_falloff = 0.5
+shader_parameter/left_falloff = 0.5
+shader_parameter/right_falloff = 0.5
+shader_parameter/black_threshold = 0.05
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_shadow"]
+render_priority = -1
+transparency = 1
+cull_mode = 2
+shading_mode = 0
+albedo_color = Color(0, 0, 0, 0.84)
+albedo_texture = ExtResource("6_shadow")
+
+[node name="PlayerActor" type="Sprite3D" unique_id=1985730463]
+script = ExtResource("1_actor")
+front_texture = ExtResource("3_front")
+front_outline_texture = ExtResource("3_front")
+back_texture = ExtResource("4_back")
+back_outline_texture = ExtResource("4_back")
+side_texture = ExtResource("5_side")
+side_outline_texture = ExtResource("5_side")
+shadow_texture = ExtResource("6_shadow")
+transform = Transform3D(1, 0, 0, 0, 1.367, 0, 0, 0, 1, 0, 3.198239, 0)
+material_override = SubResource("ShaderMaterial_body")
+billboard = 1
+pixel_size = 0.008302583
+texture = ExtResource("3_front")
+flip_h = false
+
+[node name="Shadow" type="Sprite3D" parent="." unique_id=1127118950]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -3.198239, 0)
+material_override = SubResource("StandardMaterial3D_shadow")
+billboard = 1
+pixel_size = 0.008302583
+flip_h = false
+texture = ExtResource("6_shadow")

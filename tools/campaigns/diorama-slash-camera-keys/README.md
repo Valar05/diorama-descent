@@ -52,3 +52,32 @@ Completion requires all of:
 - canary PNG exists.
 
 Do not proceed to the seven-key harvest if the canary fails.
+
+
+## Step 02: harvest
+
+After the canary passes:
+
+```sh
+bash tools/campaigns/diorama-slash-camera-keys/02_harvest.sh
+```
+
+This renders exactly seven fully-open native perspective keys:
+
+1. Launcher
+2. SlashDiagonalLeft
+3. SlashDiagonalRight
+4. SlashDown
+5. SlashLeft
+6. SlashRight
+7. CrossSlash
+
+It does not sample the animation timeline beyond selecting the first authored fully-open state.
+
+Primary artifact:
+
+```text
+assets/legacy/diorama-of-descension/generated/slash-camera-keys/diorama_slash_camera_keys.png
+```
+
+Individual transparent PNGs and a source/camera manifest are emitted beside it.

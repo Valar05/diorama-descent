@@ -49,10 +49,10 @@ func _run() -> void:
         var anim := player.get_animation(anim_name)
         if anim == null:
             continue
-        var length := max(anim.length, 0.001)
+        var length: float = maxf(float(anim.length), 0.001)
         var count := int(floor(length * sample_fps)) + 1
         for i in range(count):
-            var t := min(float(i) / float(sample_fps), max(length - 0.000001, 0.0))
+            var t: float = minf(float(i) / float(sample_fps), maxf(length - 0.000001, 0.0))
             frame_plan.append({
                 "animation": String(anim_name),
                 "time": t,

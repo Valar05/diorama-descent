@@ -53,3 +53,30 @@ GODOT_BIN=/path/to/godot \
 ## Acceptance
 
 The campaign is complete only when the phone-side run prints `SLASH_SHEET_CAMPAIGN_OK` and the sprite sheet exists at the exact deliverable path above.
+
+
+## Python synthesizer path
+
+The phone headless Godot renderer exposes only dummy texture storage, so viewport pixel readback is not an authorized completion path for this campaign.
+
+Use the source-driven synthesizer instead:
+
+```sh
+bash tools/campaigns/diorama-slash-sprite-sheet/run_python.sh
+```
+
+It reads the real Diorama source files:
+
+- `scenes/Slash.tscn`
+- `sprites/SlashTex.png`
+- `scenes/SlashGradient.tres`
+
+It samples the native animation tracks for progress, collapse, TextureRect scale, position and rotation, then emits every sampled frame on one fixed transparent canvas.
+
+Primary artifact:
+
+```text
+assets/legacy/diorama-of-descension/generated/slash-sprite-sheet-python/diorama_slash_full_sheet.png
+```
+
+Every run also writes `console.log`, and the runner copies that log to the Android clipboard on exit whether the run succeeds or fails.

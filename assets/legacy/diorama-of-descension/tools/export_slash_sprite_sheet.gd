@@ -32,6 +32,7 @@ func _parse_args() -> void:
             columns = max(1, int(arg.trim_prefix("--columns=")))
 
 func _run() -> void:
+    print("SLASH_EXPORT_START")
     _parse_args()
 
     var out_abs := ProjectSettings.globalize_path(OUTPUT_DIR)
@@ -42,8 +43,10 @@ func _run() -> void:
     root.transparent_bg = true
     RenderingServer.set_default_clear_color(Color(0.0, 0.0, 0.0, 0.0))
 
+    print("instantiating Slash.tscn")
     var probe = SLASH_SCENE.instantiate()
     root.add_child(probe)
+    print("Slash.tscn instantiated")
     probe.position = Vector2(frame_size * 0.5, frame_size * 0.5)
 
     var player: AnimationPlayer = probe.get_node("AnimationPlayer")
@@ -88,12 +91,16 @@ func _run() -> void:
         var t := float(item["time"])
         var local_index := int(item["local_index"])
 
+        print("render %s frame %d @ %.4fs" % [String(anim_name), local_index, t])
         player.play(anim_name)
         player.pause()
         player.seek(t, true)
 
+        # In phone/PRoot headless mode frame_post_draw may never fire.
+        # Two SceneTree frames are enough for AnimationPlayer + SubViewport state
+        # to settle without depending on a display-server draw signal.
         await process_frame
-        await RenderingServer.frame_post_draw
+        await process_frame
 
         var image := root.get_texture().get_image()
         if image.get_width() != frame_size or image.get_height() != frame_size:

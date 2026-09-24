@@ -13,6 +13,15 @@ var columns := DEFAULT_COLUMNS
 func _initialize() -> void:
     call_deferred("_run")
 
+func _strip_empty_animation_tracks(player: AnimationPlayer) -> void:
+    for animation_name in player.get_animation_list():
+        var animation: Animation = player.get_animation(animation_name)
+        if animation == null:
+            continue
+        for track_index in range(animation.get_track_count() - 1, -1, -1):
+            if animation.track_get_key_count(track_index) == 0:
+                animation.remove_track(track_index)
+
 func _parse_args() -> void:
     for arg in OS.get_cmdline_user_args():
         if arg.begins_with("--fps="):
@@ -38,6 +47,7 @@ func _run() -> void:
     probe.position = Vector2(frame_size * 0.5, frame_size * 0.5)
 
     var player: AnimationPlayer = probe.get_node("AnimationPlayer")
+    _strip_empty_animation_tracks(player)
     var animation_names: Array[StringName] = []
     for name in player.get_animation_list():
         if String(name) != "RESET":

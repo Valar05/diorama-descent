@@ -25,9 +25,19 @@ if [[ ! -f "$LEGACY_PROJECT/project.godot" ]]; then
   exit 3
 fi
 
+OUT_DIR="$LEGACY_PROJECT/generated/slash-sprite-sheet"
+FRAMES_DIR="$OUT_DIR/frames"
+CONSOLE_LOG="$OUT_DIR/console.log"
+OUT="$OUT_DIR/diorama_slash_full_sheet.png"
+MANIFEST="$OUT_DIR/manifest.json"
+
+mkdir -p "$FRAMES_DIR"
+: > "$CONSOLE_LOG"
+
 cd "$LEGACY_PROJECT"
 
-"$GODOT" \
+set +e
+"$GODOT" --headless \
   --path "$LEGACY_PROJECT" \
   --script res://tools/export_slash_sprite_sheet.gd \
   -- \
@@ -43,11 +53,8 @@ if [[ "$STATUS" -ne 0 ]]; then
   exit "$STATUS"
 fi
 
-OUT="$LEGACY_PROJECT/generated/slash-sprite-sheet/diorama_slash_full_sheet.png"
-MANIFEST="$LEGACY_PROJECT/generated/slash-sprite-sheet/manifest.json"
-
-[[ -s "$OUT" ]] || { echo "STOP: sprite sheet was not produced: $OUT" >&2; exit 4; }
-[[ -s "$MANIFEST" ]] || { echo "STOP: manifest was not produced: $MANIFEST" >&2; exit 5; }
+[[ -s "$OUT" ]] || { echo "STOP: sprite sheet was not produced: $OUT" >&2; echo "console=$CONSOLE_LOG"; exit 4; }
+[[ -s "$MANIFEST" ]] || { echo "STOP: manifest was not produced: $MANIFEST" >&2; echo "console=$CONSOLE_LOG"; exit 5; }
 
 echo "SLASH_SHEET_CAMPAIGN_OK"
 echo "sheet=$OUT"

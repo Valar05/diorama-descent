@@ -33,7 +33,15 @@ cd "$LEGACY_PROJECT"
   -- \
   --fps="$FPS" \
   --frame-size="$FRAME_SIZE" \
-  --columns="$COLUMNS"
+  --columns="$COLUMNS" 2>&1 | tee "$CONSOLE_LOG"
+STATUS=${PIPESTATUS[0]}
+set -e
+
+if [[ "$STATUS" -ne 0 ]]; then
+  echo "STOP: Godot exporter failed with status $STATUS"
+  echo "console=$CONSOLE_LOG"
+  exit "$STATUS"
+fi
 
 OUT="$LEGACY_PROJECT/generated/slash-sprite-sheet/diorama_slash_full_sheet.png"
 MANIFEST="$LEGACY_PROJECT/generated/slash-sprite-sheet/manifest.json"
@@ -44,3 +52,4 @@ MANIFEST="$LEGACY_PROJECT/generated/slash-sprite-sheet/manifest.json"
 echo "SLASH_SHEET_CAMPAIGN_OK"
 echo "sheet=$OUT"
 echo "manifest=$MANIFEST"
+echo "console=$CONSOLE_LOG"
